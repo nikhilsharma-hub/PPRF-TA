@@ -89,9 +89,9 @@ export class TAPage {
   async fillMinimumClaim(tag: string, amount: number) {
     const j = TA_SEL.journey;
     await this.$(j.departurePlace(0)).fill('Gandhinagar');
-    await this.setDate(j.departureDate(0), '2026-09-01 08:00');
+    await this.setDate(j.departureDate(0), '2026-10-19 08:00');
     await this.$(j.arrivalPlace(0)).fill('Ahmedabad');
-    await this.setDate(j.arrivalDate(0), '2026-09-01 10:00');
+    await this.setDate(j.arrivalDate(0), '2026-10-19 10:00');
     await this.choose(j.mode(0), 'Rail');
     await this.typeAmount(this.journeyAmount(0), amount);
     await this.$(TA_SEL.paymentName(0)).fill(tag);

@@ -36,7 +36,11 @@ test.describe('D. Save / Saved PPRF / Preview / Submit', () => {
 
     await pprf.goto();
     const after = await pprf.savedOptions();
-    savedLabel = after.find((o) => !before.includes(o)) ?? '';
+    // Chrome and Edge run in parallel on the same account: pick the new entry that holds OUR item
+    for (const label of after.filter((o) => !before.includes(o))) {
+      await pprf.selectSaved(label);
+      if ((await pprf.itemName(0).inputValue()) === DATA.itemName) { savedLabel = label; break; }
+    }
     test.info().annotations.push({ type: 'saved PPRF', description: savedLabel || 'not found' });
     expect(savedLabel, 'New entry should appear in Saved PPRF dropdown').not.toBe('');
   });

@@ -7,8 +7,8 @@ export default defineConfig({
   testDir: './tests',
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  fullyParallel: false,
-  workers: 1,               // one shared staging account -> run sequentially
+  fullyParallel: true,      // tests are independent; pprf-save-reload.spec.ts stays serial (describe.configure)
+  workers: 4,
   retries: 0,               // a retry can hide a real formatting defect
   reporter: [
     ['list'],

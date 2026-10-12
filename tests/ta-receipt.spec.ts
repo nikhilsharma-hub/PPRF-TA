@@ -8,7 +8,6 @@
  * eOffice receipt generation and the document upload are mocked in the browser. Only UpdateReceipt
  * reaches the real API, for a claim id that does not exist, so nothing is written.
  */
-import { Request } from '@playwright/test';
 import { test, expect } from './ta-fixtures';
 import { TA_SEL } from '../pages/ta.selectors';
 import { TAPage } from '../pages/ta.page';
@@ -22,7 +21,7 @@ const REMARKS_400 = /Remarks field is required/i;
 /** Mocks everything Submit touches except UpdateReceipt; returns the eOffice receipt calls. */
 async function mockSubmitChain(ta: TAPage) {
   const page = ta.page;
-  const eOfficeCalls: Request[] = [];
+  const eOfficeCalls: string[] = [];   // one entry per eOffice receipt generated
   await page.route('**/api/TA/V0/LeaveReceipts*', (r) =>
     fulfillJson(r, { data: [{ lInstanceId: FAKE_CLAIM_ID, eOfficeReceiptNo: 'AUTO-LEAVE-RECEIPT', purpose: 'Automation test', appliedOn: '2026-09-01' }] }));
   await page.route('**/GetFundDetailsFromInstanceId*', (r) => fulfillJson(r, []));
@@ -30,8 +29,9 @@ async function mockSubmitChain(ta: TAPage) {
   await page.route('**/pdfPortal/ta/ta.aspx*', (r) =>
     r.fulfill({ body: blankPdfBase64(), contentType: 'text/plain', headers: { 'Access-Control-Allow-Origin': '*' } }));
   await page.route('**/api/eOffice/eOfficeGetReceiptNo', (r) => {
-    eOfficeCalls.push(r.request());
-    return fulfillJson(r, { statusCode: '200', eOfficeReceiptNo: `AUTO-RCPT-${eOfficeCalls.length}` });
+    const receiptNo = `AUTO-RCPT-${eOfficeCalls.length + 1}`;
+    eOfficeCalls.push(`${receiptNo} for claim ${r.request().postDataJSON()?.newInstance}`);
+    return fulfillJson(r, { statusCode: '200', eOfficeReceiptNo: receiptNo });
   });
   await page.route('**/InsertDocumentDetails*', (r) => fulfillJson(r, { status: 'Success' }));
   // Reload so the mocked leave receipt list is used
@@ -101,5 +101,56 @@ test.describe('F. Submit with empty Remarks - eOffice receipt', () => {
     await clickSubmit(ta);
     await expect(ta.alertTitle, 'second Submit did not finish').toHaveText(/^(Success|Error)$/, { timeout: 30_000 });
     expect(eOfficeCalls, 'eOffice receipt generated again for the same claim').toHaveLength(1);
+  });
+});
+
+// ---------------- G. Real submit (creates a real eOffice receipt) ----------------
+test.describe('G. Real submit of a saved claim', () => {
+  test('TA_033 Submit the latest saved TA claim - receipt saved to the claim', async ({ ta, page }) => {
+    test.skip(process.env.RUN_SUBMIT !== 'true', 'Creates a real eOffice receipt - run with RUN_SUBMIT=true');
+    test.setTimeout(240_000);
+    const note = (type: string, description: string) => test.info().annotations.push({ type, description });
+
+    // Latest saved claim (labels are "dd/mm/yyyy HH:mm:ss")
+    const toTime = (l: string) => { const [d, m, y, t] = l.split(/[/ ]/); return Date.parse(`${y}-${m}-${d}T${t}`); };
+    const saved = await ta.optionTexts(TA_SEL.savedTA);
+    test.skip(!saved.length, 'No saved TA claim to submit');
+    const label = process.env.TA_SUBMIT_LABEL || [...saved].sort((a, b) => toTime(b) - toTime(a))[0];
+    await ta.choose(TA_SEL.savedTA, label);
+    await expect(ta.$(TA_SEL.paymentName(0))).not.toHaveValue('');
+    note('claim', `${label} | payment name ${await ta.$(TA_SEL.paymentName(0)).inputValue()} | Remarks "${await ta.$(TA_SEL.remarks).inputValue()}"`);
+
+    // Record the whole Submit chain
+    const calls: string[] = [];
+    let eOfficeCalls = 0;
+    let update: { status: number; sent: any; body: string } | undefined;
+    page.on('response', async (res) => {
+      const url = res.url();
+      if (!/api\/TA\/V0\/Submit|eOfficeGetReceiptNo|UpdateReceipt|InsertDocumentDetails/.test(url)) return;
+      const body = (await res.text().catch(() => '')).slice(0, 300);
+      if (/eOfficeGetReceiptNo/.test(url)) eOfficeCalls++;
+      if (/UpdateReceipt/.test(url)) update = { status: res.status(), sent: res.request().postDataJSON(), body };
+      calls.push(`${res.request().method()} ${url.replace(/^.*\/api\//, 'api/')} -> ${res.status()} ${body}`);
+    });
+
+    await ta.$(TA_SEL.remarks).fill('Automation test - TA claim submitted with Remarks filled');
+    await ta.$(TA_SEL.declaration).check();
+    await ta.$(TA_SEL.submit).click();
+    await expect(ta.alertTitle).toHaveText('Confirmation');
+    await ta.$(TA_SEL.alertOk).click();                                 // "Yes" - exactly one attempt, no retry
+    // Wait for the final popup (Success / Error / eOffice warning), not the closing Confirmation
+    const popupTitle = async () => ((await ta.alertTitle.isVisible()) ? (await ta.alertTitle.innerText()).trim() : '');
+    await expect.poll(popupTitle, { timeout: 180_000, message: 'Submit did not finish' }).not.toMatch(/^(|Confirmation)$/);
+    const title = await popupTitle();
+    const text = (await ta.alertText.innerText().catch(() => '')).trim();
+    note('result popup', `${title}: ${text}`);
+    calls.forEach((c) => note('api', c));
+    if (update) note('UpdateReceipt sent', JSON.stringify({ ...update.sent, Remarks: update.sent?.Remarks }));
+    await page.screenshot({ path: test.info().outputPath('submit-result.png'), fullPage: true });
+
+    expect(title, `Submit ended with "${title}: ${text}"`).toBe('Success');
+    expect(text).toMatch(/Receipt No:\s*\S+/);
+    expect(update?.status, `UpdateReceipt: ${update?.body}`).toBe(200);
+    expect(eOfficeCalls, 'eOffice receipts generated for one submit').toBe(1);
   });
 });

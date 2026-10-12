@@ -52,7 +52,7 @@ export class PPRFPage {
   /** Fills the non-amount mandatory fields of an item row. */
   async fillRowDetails(i: number, name: string) {
     await this.itemName(i).fill(name);
-    await this.description(i).fill(`Automation test item for IPS-54654 (${name})`);
+    await this.description(i).fill(`Automation test item for IPS-54654 - ${name}`);
     for (const n of [1, 2, 3]) {
       await chooseOption(this.page, this.itemName(i).locator(SEL.rowSelect(n)), { index: 1 });
     }

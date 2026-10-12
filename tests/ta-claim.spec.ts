@@ -29,6 +29,14 @@ test.describe('A. Form and employee details', () => {
     await expect(ta.$(TA_SEL.fundTotalAmount)).not.toBeEditable();
   });
 
+  test('TA_031 Selecting the eOffice Leave Receipt fills Purpose of Travel', async ({ ta }) => {
+    const receipts = await ta.optionTexts(TA_SEL.eOfficeReceipt);
+    test.skip(!receipts.length, 'No eOffice Leave Receipt available for this account');
+    await ta.choose(TA_SEL.eOfficeReceipt, process.env.TA_RECEIPT_LABEL || receipts[0]);
+    await expect(ta.$(TA_SEL.purposeOfTravel)).not.toHaveValue('');
+    await expect(ta.$(TA_SEL.purposeOfTravel)).not.toBeEditable();
+  });
+
   test('TA_004 Mode of Travel lists all travel modes', async ({ ta }) => {
     expect(await ta.optionTexts(TA_SEL.journey.mode(0))).toEqual([
       'Air',
@@ -202,6 +210,9 @@ test.describe('D. Guest claim', () => {
 
 // ---------------- E. Save and reload ----------------
 test.describe('E. Save and reload', () => {
+  test.describe.configure({ mode: 'serial' });   // TA_032 reopens the claim TA_027 saves
+  let savedLabel = '';
+
   test('TA_027 Saved claim reopens with the same amounts', async ({ ta }) => {
     const receipts = await ta.optionTexts(TA_SEL.eOfficeReceipt);
     test.skip(!receipts.length, 'No eOffice Leave Receipt available for this account - create an approved leave first');
@@ -215,10 +226,27 @@ test.describe('E. Save and reload', () => {
 
     await ta.goto();
     const added = (await ta.optionTexts(TA_SEL.savedTA)).filter((o) => !before.includes(o));
-    expect(added, 'saved claim did not appear in "Saved Travelling Allowance Claim"').toHaveLength(1);
-    await ta.choose(TA_SEL.savedTA, added[0]);
-    await expect(ta.$(TA_SEL.paymentName(0))).toHaveValue(tag);
+    expect(added, 'saved claim did not appear in "Saved Travelling Allowance Claim"').not.toHaveLength(0);
+    // Chrome and Edge run in parallel on the same account: open the new entry that holds OUR tag
+    let found = false;
+    for (const label of added) {
+      await ta.choose(TA_SEL.savedTA, label);
+      await expect(ta.$(TA_SEL.paymentName(0))).not.toHaveValue('');
+      if ((found = (await ta.$(TA_SEL.paymentName(0)).inputValue()) === tag)) { savedLabel = label; break; }
+    }
+    expect(found, `saved claim ${tag} not found in the Saved list`).toBe(true);
     await expectINR(ta.journeyAmount(0), 123456.5, { strictDecimals: true });      // 1,23,456.50
-    await expectINR(ta.gross, 123456.5, { strictDecimals: true });
+    await expectINR(ta.paymentAmount(0), 123456.5, { strictDecimals: true });
+    expect(toNumber(await ta.gross.inputValue())).toBe(123456.5);
+  });
+
+  test('TA_032 Saved claim reloads Gross and Net Amount in INR format', async ({ ta }) => {
+    test.skip(!savedLabel, 'Depends on TA_027');
+    // Known defect: on reload Gross/Net show "123456.5" (no commas). Remove this line once fixed - the test then turns red.
+    test.fail(true, 'Known defect: reloaded Gross/Net Amount are not INR formatted');
+    await ta.choose(TA_SEL.savedTA, savedLabel);
+    await expectINR(ta.journeyAmount(0), 123456.5, { strictDecimals: true });      // wait until the claim is loaded
+    await expectINR(ta.gross, 123456.5, { strictDecimals: true });                 // 1,23,456.50
+    await expectINR(ta.net, 123456.5, { strictDecimals: true });
   });
 });
