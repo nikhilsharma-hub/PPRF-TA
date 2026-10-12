@@ -24,17 +24,18 @@ export default defineConfig({
     navigationTimeout: 30_000,
   },
   projects: [
-    { name: 'setup', testMatch: /auth\.setup\.ts/, use: { ...devices['Desktop Chrome'], channel: 'chrome' } },    {
+    { name: 'setup', testMatch: /\.setup\.ts$/, use: { ...devices['Desktop Chrome'], channel: 'chrome' } },
+    {
       name: 'chrome',
       use: { ...devices['Desktop Chrome'], channel: 'chrome', storageState: AUTH_FILE },
       dependencies: ['setup'],
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: /\.setup\.ts$/,
     },
     {
       name: 'edge',
       use: { ...devices['Desktop Edge'], channel: 'msedge', storageState: AUTH_FILE },
       dependencies: ['setup'],
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: /\.setup\.ts$/,
     },
   ],
 });

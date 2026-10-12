@@ -12,7 +12,9 @@
     "test:debug": "playwright test --project=chrome --debug",
     "codegen": "playwright codegen",
     "report": "playwright show-report",
-    "excel": "node scripts/update-excel.mjs"
+    "excel": "node scripts/update-excel.mjs",
+    "test:ta": "playwright test tests/ta- --project=chrome",
+    "test:ta:smoke": "playwright test tests/ta- --project=chrome --grep @smoke"
   },
   "devDependencies": {
     "@playwright/test": "1.48.2",

@@ -133,3 +133,29 @@ tests/pprf-save-reload.spec.ts  section D (serial)
 db/IPS-54654_db_checks.sql      section E (manual)
 scripts/update-excel.mjs    writes results into the Excel report
 ```
+
+---
+
+## 9. Travelling Allowance Claim suite
+
+**Path:** General → Individual → Claims → Travelling Allowance (`/IITGNforms/hr/travelallowance`). The login is the same as for PPRF.
+`tests/ta.setup.ts` is the pre-condition: it logs in, opens the form through the menu and saves the form URL to `.auth/ta-url.txt`.
+
+| Section | TA IDs | What is checked |
+|---|---|---|
+| A. Form and employee details | TA_001 – TA_004 | Self is the default, employee details are auto-filled and read-only, Mode of Travel list |
+| B. Amounts and Claim Summary | TA_005 – TA_017 | INR format, Gross = sum of all expenses, Net = Gross − Advance, Per Diem = rate × days, date rules, add/remove rows |
+| C. Mandatory validation | TA_018 – TA_020 | Save, Submit and Preview on an empty form |
+| D. Guest claim | TA_021 – TA_026 | Guest fields, Guest validation, Guest fund amounts, Fund Source list |
+| F. Submit with empty Remarks (`tests/ta-receipt.spec.ts`) | TA_028 – TA_030 | UpdateReceipt accepts `Remarks: null` (API and UI), and a re-submit after a failed UpdateReceipt does not generate a second eOffice receipt. **Safe:** Submit, PDF portal, eOffice and document upload are mocked; only UpdateReceipt hits the real API, with a claim id that does not exist. |
+| E. Save and reload | TA_027 | Saves a claim (payment name `AUTO-TA-<timestamp>`) and reopens it from the Saved list. **Skipped when the account has no eOffice Leave Receipt.** |
+
+```bash
+npm run test:ta           # TA suite, Chrome
+npm run test:ta:smoke     # TA @smoke cases
+npx playwright test ta-claim --project=edge
+```
+
+Files: `pages/ta.selectors.ts` (all TA locators, taken from the live form ids), `pages/ta.page.ts` (page object), `tests/ta-fixtures.ts`, `tests/ta-claim.spec.ts`. Login is shared in `utils/login.ts`.
+
+TA results use `TA_xxx` IDs, so `scripts/update-excel.mjs` (which reads `TC_xxx`) does not write them into the PPRF report.
