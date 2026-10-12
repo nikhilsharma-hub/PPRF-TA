@@ -1,0 +1,24 @@
+{
+  "name": "ips-54654-pprf-inr-format",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright automation for IPS-54654 - PPRF INR amount format (comma separators)",
+  "scripts": {
+    "test": "playwright test",
+    "test:chrome": "playwright test --project=chrome",
+    "test:edge": "playwright test --project=edge",
+    "test:headed": "playwright test --project=chrome --headed --workers=1",
+    "test:smoke": "playwright test --project=chrome --grep @smoke",
+    "test:debug": "playwright test --project=chrome --debug",
+    "codegen": "playwright codegen",
+    "report": "playwright show-report",
+    "excel": "node scripts/update-excel.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2",
+    "@types/node": "20.16.11",
+    "dotenv": "16.4.5",
+    "exceljs": "4.4.0",
+    "typescript": "5.6.3"
+  }
+}
