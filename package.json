@@ -13,6 +13,7 @@
     "codegen": "playwright codegen",
     "report": "playwright show-report",
     "excel": "node scripts/update-excel.mjs",
+    "report:excel": "node scripts/report-to-excel.mjs",
     "test:ta": "playwright test tests/ta- --project=chrome",
     "test:ta:smoke": "playwright test tests/ta- --project=chrome --grep @smoke"
   },
