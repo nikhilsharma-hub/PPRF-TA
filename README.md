@@ -34,10 +34,14 @@
    npm install
    npx playwright install chrome msedge
    ```
-3. `.env` is already included with the rnd.ja credentials. Only fill in **`BASE_URL`**, the IPAS staging URL.
+3. Copy `.env.example` to `.env`, then fill in **`BASE_URL`** and the credentials needed for the suite.
    **Never commit `.env`** (it is in `.gitignore`).
 
-**Only the PPRF form is tested.** Login and the menu path are a pre-condition, done once in `tests/auth.setup.ts` before the tests start:
+For the manual Telephone Reimbursement test, use the account variables
+`TELEPHONE_USER` and `TELEPHONE_PASSWORD`. These credentials are intentionally
+not stored in the repository.
+
+**For the PPRF suite, only the PPRF form is tested.** Login and the menu path are a pre-condition, done once in `tests/auth.setup.ts` before the tests start:
 
 1. Log in as rnd.ja.
 2. Open **MM** (top menu) → **Individual** → **STORES** → **PPRF**.
@@ -159,3 +163,58 @@ npx playwright test ta-claim --project=edge
 Files: `pages/ta.selectors.ts` (all TA locators, taken from the live form ids), `pages/ta.page.ts` (page object), `tests/ta-fixtures.ts`, `tests/ta-claim.spec.ts`. Login is shared in `utils/login.ts`.
 
 TA results use `TA_xxx` IDs, so `scripts/update-excel.mjs` (which reads `TC_xxx`) does not write them into the PPRF report.
+
+---
+
+## 10. Telephone Reimbursement test
+
+**Path:** Establishment & Admin → Individual → Claims → Telephone Reimbursement.
+The form was tested on IPAS staging with the `ena.ja` account. Do not commit the
+password; configure it locally through `TELEPHONE_PASSWORD` in `.env`.
+
+### Test coverage
+
+| Area | Result | Coverage |
+|---|---|---|
+| Login and menu navigation | Pass | Opened the form through the specified menu path |
+| Employee details | Pass | Employee ID, name, department, designation and monthly ceiling |
+| Required-field validation | Pass | Date, connection type, telephone number, amount, document title and attachment |
+| Agreement validation | Pass | Submission blocked until the instruction checkbox was selected |
+| Amount calculation | Pass | Total matched the entered claim amount |
+| Preview field recheck | Pass | Date, type, telephone number, amount, total, title, PDF, agreement and remarks rechecked |
+| Submit confirmation | Pass | Confirmation dialog appeared before submission |
+| History and dashboard verification | Fail | Duplicate Telephone Reimbursement entries were created |
+| Preview API behavior | Fail | Preview triggered `InsertTeleReimbursementDetails` |
+| Submit API behavior | Fail | A final Submit run returned two insert responses |
+
+### Validation claim data
+
+- Date of bill: `10/11/2026`
+- Connection type: `Telephone`
+- Telephone number: `9123456789`
+- Amount and total: `200.00`
+- Supporting document: PDF upload
+- Agreement: checked
+- Remarks: `Validated before submission`
+
+### Duplicate-entry finding
+
+The same claim was accepted more than once. Receipts observed during testing
+were `173944/2026/IMS`, `173945/2026/IMS`, and `173947/2026/IMS`.
+The dashboard showed consecutive Telephone Reimbursement submissions, and the
+submitted-by-me count increased from 56 to 59.
+
+Preview generated:
+
+```text
+POST /ERPSystemAPI/api/TelephoneReimbursement/InsertTeleReimbursementDetails
+GET  /ERPSystemAPI/api/Common/getCommonbase64FromInstanceId?...urlKey=TelephoneReimbusrement
+```
+
+Preview must be read-only and must not call the insert endpoint. Submit should
+perform exactly one insert per confirmed claim and should protect against
+duplicate requests. The test limit of five submissions was reached; no further
+submissions should be made until the defect is fixed.
+
+The complete execution report is available at
+`reports/Telephone_Reimbursement_Test_Report_2026-11-10.pdf`.
